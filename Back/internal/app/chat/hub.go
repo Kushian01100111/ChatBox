@@ -1,5 +1,7 @@
 package chat
 
+import "fmt"
+
 type Hub struct {
 	clients    map[string]map[*Client]bool
 	register   chan *Client
@@ -8,6 +10,7 @@ type Hub struct {
 }
 
 type Message struct {
+	Type      string `json:"type"`
 	ID        string `json:"id"`
 	Sender    string `json:"sender"`
 	Recipient string `json:"recipient"`
@@ -36,8 +39,48 @@ func (h *Hub) Run() {
 	}
 }
 
-func (h *Hub) RegisterNewClient(client *Client)
+func (h *Hub) RegisterNewClient(client *Client) {
+	connections := h.clients[client.ID]
+	if connections == nil {
+		connections = make(map[*Client]bool)
+		h.clients[client.ID] = connections
+	}
+	h.clients[client.ID][client] = true
 
-func (h *Hub) RemoveClient(client *Client)
+	fmt.Println("Size of clients: ", len(h.clients[client.ID]))
+}
 
-func (h *Hub) HandleMessage(message Message)
+func (h *Hub) RemoveClient(client *Client) {
+	if _, ok := h.clients[client.ID]; ok {
+		delete(h.clients[client.ID], client)
+		close(client.Send)
+		fmt.Println("Removed client")
+	}
+}
+
+func (h *Hub) HandleMessage(message Message) {
+	if message.Type == "message" {
+		clients := h.clients[message.ID]
+		for client := range clients {
+			select {
+			case client.Send <- message:
+			default:
+				close(client.Send)
+				delete(h.clients[message.ID], client)
+			}
+		}
+	}
+
+	if message.Type == "notification" {
+		fmt.Printf("Notification: %s\n", message.Content)
+		clients := h.clients[message.Recipient]
+		for client := range clients {
+			select {
+			case client.Send <- message:
+			default:
+				close(client.Send)
+				delete(h.clients[message.Recipient], client)
+			}
+		}
+	}
+}

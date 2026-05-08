@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/kushian01100111/ChatBox/internal/app/chat"
 	"github.com/kushian01100111/ChatBox/internal/config"
 	Server "github.com/kushian01100111/ChatBox/internal/http"
 )
@@ -18,9 +19,12 @@ func main() {
 		logger.Error(err.Error())
 		os.Exit(1)
 	}
-
 	addr := flag.String("addr", ":"+config.Port, "HTTP network address")
-	r := Server.NewHandler()
+
+	hub := chat.NewHub()
+	go hub.Run()
+
+	r := Server.NewHandler(hub)
 	srv := &http.Server{
 		Addr:    *addr,
 		Handler: r,
